@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Generated QC outputs and local model caches
+qc_output/
+outputs/
+reports/
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.ogg
+*.mp4
+models/
+
+# Customer materials and local calibration data
+private_data/
+eval/data/
+eval/runs/
+*.pdf
+*.docx
+*.xlsx
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/

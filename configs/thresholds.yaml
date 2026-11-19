@@ -1,0 +1,11 @@
+# Safety baseline v0.4.0. Only controls used by runtime are exposed.
+# Values are not quality calibration; change them only against a labelled eval set.
+version: 2
+text:
+  anchor_token_attempts: [15, 12, 10, 8, 6]
+audio:
+  clip_sample_amplitude: 0.99
+  lead_or_trail_silence_review_s: 2.0
+prosody:
+  monotony_range_semitones: 10.0
+  monotony_min_voiced_duration_s: 30.0

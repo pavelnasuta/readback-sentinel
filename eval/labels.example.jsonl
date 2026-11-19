@@ -1,0 +1,2 @@
+{"case_id":"book01_ch01_001","event_id":"evt_001","start_s":143.2,"end_s":145.8,"category":"PRONUNCIATION","severity":"REVIEW","human_verdict":"REJECTED_AS_ASR","expected_text":"имя персонажа","heard_text":"имя персонажа","notes":"Диктор произнёс правильно; ASR ошиблась."}
+{"case_id":"book02_ch03_002","event_id":"evt_002","start_s":514.6,"end_s":518.1,"category":"MISSING_TEXT","severity":"CRITICAL","human_verdict":"CONFIRMED","expected_text":"Фраза из эталонного текста","heard_text":"","notes":"Подтверждено куратором."}

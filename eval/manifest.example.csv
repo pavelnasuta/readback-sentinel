@@ -1,0 +1,3 @@
+case_id,audio_ref,text_ref,scope_start,scope_end,narrator_group,format,duration_s,split,notes
+book01_ch01_001,private_data/book01/ch01.wav,private_data/book01/source.txt,0,600,narrator_a,wav,600,calibration,"Clean narration with rare names"
+book02_ch03_002,private_data/book02/ch03.flac,private_data/book02/source.txt,120,900,narrator_b,flac,780,calibration,"Known splice and one confirmed omission"

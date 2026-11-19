@@ -1,0 +1,38 @@
+# Управленческая политика QC. Pipeline валидирует этот контракт до запуска.
+version: 1
+safety:
+  candidate_not_verdict: true
+  human_triage_required_before_narrator_export: true
+  automatic_narrator_export: false
+
+statuses:
+  - NEW
+  - AUTO_ANALYZED
+  - TRIAGE
+  - CONFIRMED
+  - REJECTED_AS_ASR
+  - REPAIR_REQUESTED
+  - RESUBMITTED
+  - DELTA_RECHECK
+  - ACCEPTED
+
+routing:
+  producer_pdf: confirmed_only
+  narrator_docx: confirmed_only
+  audition_csv: confirmed_only
+  diagnostic_json: all_candidates
+
+review_policy:
+  always_review:
+    - PRONUNCIATION
+    - FACTUAL_ERROR
+    - MEANING_DISTORTION
+    - DATE_OR_NUMBER
+    - low_alignment_confidence
+  random_sample_rate: 0.20
+
+release_gate:
+  require_unit_tests: true
+  require_eval_comparison: true
+  require_human_release_note: true
+  block_merge_if_precision_degrades: true
