@@ -24,6 +24,9 @@ eval/runs/
 *.docx
 *.xlsx
 
+# Local implementation worktrees
+.worktrees/
+
 # OS/editor
 .DS_Store
 .vscode/
