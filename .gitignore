@@ -24,8 +24,9 @@ eval/runs/
 *.docx
 *.xlsx
 
-# Local implementation worktrees
+# Local implementation worktrees and agent ledgers
 .worktrees/
+.superpowers/
 
 # OS/editor
 .DS_Store
