@@ -1,7 +1,7 @@
 """Immutable, JSON-safe models for portable bootstrap receipts."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field, fields
 from enum import Enum
 import math
 from typing import Any
@@ -69,18 +69,23 @@ class Receipt:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a receipt that ``json.dumps`` can serialize without custom hooks."""
-        return _normalise(asdict(self))
+        return _normalise(self)
 
 
 def _normalise(value: object) -> Any:
+    if isinstance(value, Enum):
+        return _normalise(value.value)
     if value is None or isinstance(value, (bool, int, str)):
         return value
     if isinstance(value, float):
         if not math.isfinite(value):
             raise ValueError("non-finite float is not JSON-safe")
         return value
-    if isinstance(value, Enum):
-        return _normalise(value.value)
+    if isinstance(value, (Receipt, PlatformInfo, ComponentStatus, Step)):
+        return {
+            declared_field.name: _normalise(getattr(value, declared_field.name))
+            for declared_field in fields(value)
+        }
     if isinstance(value, dict):
         normalised: dict[str, Any] = {}
         for key, item in value.items():

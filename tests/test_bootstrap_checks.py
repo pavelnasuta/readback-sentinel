@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from readback_bootstrap import checks
 from readback_bootstrap.checks import discover_environment
 from readback_bootstrap.models import OverallStatus, PlatformInfo, Receipt
 
@@ -147,3 +148,42 @@ def test_receipt_to_dict_rejects_non_string_dictionary_keys() -> None:
 
     with pytest.raises(TypeError):
         receipt.to_dict()
+
+
+class _DeepcopyLaunderer:
+    """Simulate an unsupported object that disguises itself during copying."""
+
+    def __deepcopy__(self, memo: object) -> str:
+        return "laundered"
+
+    def __repr__(self) -> str:
+        return "<private receipt value>"
+
+
+def test_receipt_to_dict_rejects_values_laundered_by_deepcopy() -> None:
+    """Catches dataclass copying before unsupported receipt values are validated."""
+    receipt = Receipt(
+        command="check",
+        status=OverallStatus.READY,
+        platform=PlatformInfo(system="Darwin", release="test", machine="arm64"),
+        python={"unsafe": _DeepcopyLaunderer()},
+        components=(),
+    )
+
+    with pytest.raises(TypeError) as error:
+        receipt.to_dict()
+
+    assert "laundered" not in str(error.value)
+    assert "private receipt value" not in str(error.value)
+
+
+def test_default_resolver_rejects_non_executable_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Catches a resolver that treats a regular file as a ready executable."""
+    executable = tmp_path / "ffmpeg"
+    executable.write_text("not executable", encoding="utf-8")
+    executable.chmod(0o644)
+    monkeypatch.setattr(checks, "_executable_directories", lambda _system: (tmp_path,))
+
+    assert checks._default_which("ffmpeg", "Darwin") is None

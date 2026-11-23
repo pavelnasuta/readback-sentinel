@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import platform as host_platform
+import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -86,7 +87,7 @@ def _default_which(name: str, system: str) -> str | None:
     for directory in _executable_directories(system):
         for suffix in suffixes:
             candidate = directory / f"{name}{suffix}"
-            if candidate.is_file():
+            if candidate.is_file() and os.access(candidate, os.X_OK):
                 return str(candidate)
     return None
 
