@@ -1,9 +1,7 @@
 """Platform-specific, command-only prerequisite planning."""
 from __future__ import annotations
 
-from collections.abc import Callable
-
-from .models import PlatformInfo, Step, StepStatus
+from .models import ComponentState, PlatformInfo, Step, StepStatus
 
 
 _DEBIAN_SYSTEMS = frozenset({"debian", "ubuntu"})
@@ -12,12 +10,12 @@ _DEBIAN_SYSTEMS = frozenset({"debian", "ubuntu"})
 def platform_ffmpeg_step(
     platform: PlatformInfo,
     *,
-    which: Callable[[str], str | None],
+    package_manager_state: ComponentState | None,
     is_root: bool,
 ) -> Step:
-    """Return the safe ffmpeg prerequisite step for one detected platform."""
+    """Return an ffmpeg step from immutable platform discovery state."""
     if platform.system == "Darwin":
-        if which("brew") is not None:
+        if package_manager_state is ComponentState.READY:
             return Step(
                 id="install_ffmpeg",
                 argv=("brew", "install", "ffmpeg"),
@@ -28,7 +26,7 @@ def platform_ffmpeg_step(
         )
 
     if platform.system == "Windows":
-        if which("winget") is not None:
+        if package_manager_state is ComponentState.READY:
             return Step(
                 id="install_ffmpeg",
                 argv=(
@@ -47,7 +45,7 @@ def platform_ffmpeg_step(
         )
 
     if platform.system == "Linux" and platform.release.lower() in _DEBIAN_SYSTEMS:
-        if which("apt-get") is None:
+        if package_manager_state is not ComponentState.READY:
             return _manual_step(
                 "Install apt-get for this Debian/Ubuntu system, then rerun bootstrap."
             )

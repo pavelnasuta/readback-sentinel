@@ -1,8 +1,9 @@
 """Contracts for deterministic, command-only bootstrap planning."""
 from __future__ import annotations
 
+import inspect
+import shutil
 import sys
-from collections.abc import Callable
 
 import pytest
 
@@ -30,17 +31,15 @@ def _receipt(*components: ComponentStatus, platform: PlatformInfo | None = None)
 
 
 @pytest.mark.parametrize(
-    ("platform", "which", "is_root", "argv"),
+    ("platform", "is_root", "argv"),
     [
         (
             PlatformInfo("Darwin", "", "arm64"),
-            lambda name: "/opt/homebrew/bin/brew" if name == "brew" else None,
             False,
             ("brew", "install", "ffmpeg"),
         ),
         (
             PlatformInfo("Windows", "", "AMD64"),
-            lambda name: "C:/Windows/winget.exe" if name == "winget" else None,
             False,
             (
                 "winget",
@@ -54,13 +53,11 @@ def _receipt(*components: ComponentStatus, platform: PlatformInfo | None = None)
         ),
         (
             PlatformInfo("Linux", "debian", "x86_64"),
-            lambda name: "/usr/bin/apt-get" if name == "apt-get" else None,
             True,
             ("apt-get", "install", "-y", "ffmpeg"),
         ),
         (
             PlatformInfo("Linux", "ubuntu", "x86_64"),
-            lambda name: "/usr/bin/apt-get" if name == "apt-get" else None,
             True,
             ("apt-get", "install", "-y", "ffmpeg"),
         ),
@@ -68,12 +65,15 @@ def _receipt(*components: ComponentStatus, platform: PlatformInfo | None = None)
 )
 def test_platform_plan_uses_exact_non_shell_ffmpeg_command(
     platform: PlatformInfo,
-    which: Callable[[str], str | None],
     is_root: bool,
     argv: tuple[str, ...],
 ) -> None:
     """Catches platform mappings that alter a supported package-manager command."""
-    step = platform_ffmpeg_step(platform, which=which, is_root=is_root)
+    step = platform_ffmpeg_step(
+        platform,
+        package_manager_state=ComponentState.READY,
+        is_root=is_root,
+    )
 
     assert step.id == "install_ffmpeg"
     assert step.argv == argv
@@ -87,7 +87,7 @@ def test_non_root_debian_requires_manual_sudo_step_without_sudo_argv() -> None:
     """Catches a planner that represents privilege escalation as an executable step."""
     step = platform_ffmpeg_step(
         PlatformInfo("Linux", "debian", "x86_64"),
-        which=lambda _name: "/usr/bin/apt-get",
+        package_manager_state=ComponentState.READY,
         is_root=False,
     )
 
@@ -109,7 +109,11 @@ def test_missing_platform_package_manager_requires_a_manual_action(
     platform: PlatformInfo, manager: str, manual_fragment: str
 ) -> None:
     """Catches guessing or executing a package-manager bootstrap installer."""
-    step = platform_ffmpeg_step(platform, which=lambda _name: None, is_root=False)
+    step = platform_ffmpeg_step(
+        platform,
+        package_manager_state=ComponentState.MISSING,
+        is_root=False,
+    )
 
     assert step.id == "install_ffmpeg"
     assert step.status is StepStatus.MANUAL_ACTION_REQUIRED
@@ -125,15 +129,10 @@ def test_plan_installs_uv_with_confirmed_pip_then_syncs_dependencies() -> None:
         ComponentStatus("ffmpeg", ComponentState.MISSING),
         ComponentStatus("uv", ComponentState.MISSING),
         ComponentStatus("pip", ComponentState.READY),
+        ComponentStatus("brew", ComponentState.READY),
     )
 
-    steps = build_install_plan(
-        receipt,
-        model=None,
-        skip_model=False,
-        is_root=False,
-        which=lambda name: "/opt/homebrew/bin/brew" if name == "brew" else None,
-    )
+    steps = build_install_plan(receipt, model=None, skip_model=False, is_root=False)
 
     assert [(step.id, step.argv) for step in steps] == [
         ("install_ffmpeg", ("brew", "install", "ffmpeg")),
@@ -142,6 +141,37 @@ def test_plan_installs_uv_with_confirmed_pip_then_syncs_dependencies() -> None:
     ]
     assert all(step.requires_network for step in steps)
     assert all(step.requires_elevation is False for step in steps)
+
+
+def test_plan_uses_receipt_package_manager_state_without_host_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Catches planning that repeats executable discovery after receipt creation."""
+    def sentinel_resolver(_name: str) -> str:
+        raise AssertionError("planning must not inspect host executables")
+
+    monkeypatch.setattr(shutil, "which", sentinel_resolver)
+    ready_receipt = _receipt(
+        ComponentStatus("ffmpeg", ComponentState.MISSING),
+        ComponentStatus("uv", ComponentState.READY),
+        ComponentStatus("brew", ComponentState.READY),
+    )
+    missing_receipt = _receipt(
+        ComponentStatus("ffmpeg", ComponentState.MISSING),
+        ComponentStatus("uv", ComponentState.READY),
+        ComponentStatus("brew", ComponentState.MISSING),
+    )
+
+    assert "which" not in inspect.signature(build_install_plan).parameters
+    assert "which" not in inspect.signature(platform_ffmpeg_step).parameters
+    assert build_install_plan(
+        ready_receipt, model=None, skip_model=False, is_root=False
+    )[0].argv == ("brew", "install", "ffmpeg")
+    missing_step = build_install_plan(
+        missing_receipt, model=None, skip_model=False, is_root=False
+    )[0]
+    assert missing_step.status is StepStatus.MANUAL_ACTION_REQUIRED
+    assert missing_step.argv is None
 
 
 def test_missing_pip_requires_manual_action_and_does_not_plan_uv_or_sync() -> None:

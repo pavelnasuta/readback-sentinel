@@ -1,9 +1,7 @@
 """Immutable, command-only prerequisite plan construction."""
 from __future__ import annotations
 
-import shutil
 import sys
-from collections.abc import Callable
 
 from .models import ComponentState, Receipt, Step, StepStatus
 from .platforms import platform_ffmpeg_step
@@ -18,7 +16,6 @@ def build_install_plan(
     model: str | None,
     skip_model: bool,
     is_root: bool,
-    which: Callable[[str], str | None] = shutil.which,
 ) -> tuple[Step, ...]:
     """Build a deterministic plan without executing commands or inspecting state."""
     _validate_model(model)
@@ -26,7 +23,11 @@ def build_install_plan(
 
     if _component_state(receipt, "ffmpeg") is not ComponentState.READY:
         steps.append(
-            platform_ffmpeg_step(receipt.platform, which=which, is_root=is_root)
+            platform_ffmpeg_step(
+                receipt.platform,
+                package_manager_state=_package_manager_state(receipt),
+                is_root=is_root,
+            )
         )
 
     uv_available = _component_state(receipt, "uv") is ComponentState.READY
@@ -84,6 +85,13 @@ def _component_state(receipt: Receipt, name: str) -> ComponentState | None:
         if component.name == name:
             return component.status
     return None
+
+
+def _package_manager_state(receipt: Receipt) -> ComponentState | None:
+    manager = {"Darwin": "brew", "Linux": "apt-get", "Windows": "winget"}.get(
+        receipt.platform.system
+    )
+    return _component_state(receipt, manager) if manager is not None else None
 
 
 def _validate_model(model: str | None) -> None:
