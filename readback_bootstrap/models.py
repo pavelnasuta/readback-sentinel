@@ -51,6 +51,8 @@ class Step:
     requires_elevation: bool = False
     status: StepStatus = StepStatus.NOT_RUN
     manual_action: str | None = None
+    return_code: int | None = None
+    error: str | None = None
 
 
 @dataclass(frozen=True)
