@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import platform as host_platform
-import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -26,12 +25,13 @@ def discover_environment(
     system: str | None = None,
     machine: str | None = None,
     python_version: tuple[int, int] | None = None,
-    which: Callable[[str], str | None] = shutil.which,
+    which: Callable[[str], str | None] | None = None,
     run: Callable[..., Any] | None = None,
 ) -> Receipt:
     """Inspect bootstrap prerequisites without executing commands or changing state."""
     del run
     detected_system = system if system is not None else host_platform.system()
+    resolver = which if which is not None else lambda name: _default_which(name, detected_system)
     detected_machine = machine if machine is not None else host_platform.machine()
     detected_python = python_version or (sys.version_info.major, sys.version_info.minor)
     platform = PlatformInfo(
@@ -45,9 +45,9 @@ def discover_environment(
         _project_component("lockfile", root / "uv.lock"),
         _python_component(detected_python),
         ComponentStatus("pip", ComponentState.UNKNOWN),
-        _executable_component("uv", which),
-        _executable_component("ffmpeg", which),
-        *_package_manager_components(detected_system, which),
+        _executable_component("uv", resolver),
+        _executable_component("ffmpeg", resolver),
+        *_package_manager_components(detected_system, resolver),
     )
     status = _overall_status(detected_system, components)
     return Receipt(
@@ -78,6 +78,45 @@ def _python_component(version: tuple[int, int]) -> ComponentStatus:
         ComponentState.UNSUPPORTED,
         "Python 3.11 or newer is required.",
     )
+
+
+def _default_which(name: str, system: str) -> str | None:
+    """Find a known executable without consulting PATH or PATHEXT."""
+    suffixes = (".exe", ".cmd", ".bat", "") if system == "Windows" else ("",)
+    for directory in _executable_directories(system):
+        for suffix in suffixes:
+            candidate = directory / f"{name}{suffix}"
+            if candidate.is_file():
+                return str(candidate)
+    return None
+
+
+def _executable_directories(system: str) -> tuple[Path, ...]:
+    """Return explicitly approved executable locations for each supported system."""
+    if system == "Darwin":
+        return (
+            Path("/opt/homebrew/bin"),
+            Path("/usr/local/bin"),
+            Path("/usr/bin"),
+            Path("/bin"),
+            Path.home() / ".local" / "bin",
+        )
+    if system == "Linux":
+        return (
+            Path("/usr/local/bin"),
+            Path("/usr/bin"),
+            Path("/bin"),
+            Path("/snap/bin"),
+            Path.home() / ".local" / "bin",
+        )
+    if system == "Windows":
+        return (
+            Path("C:/Windows/System32"),
+            Path("C:/Program Files/PowerShell/7"),
+            Path("C:/Program Files/Git/cmd"),
+            Path.home() / "AppData" / "Local" / "Microsoft" / "WindowsApps",
+        )
+    return ()
 
 
 def _executable_component(

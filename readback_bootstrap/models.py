@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from enum import Enum
+import math
 from typing import Any
 
 
@@ -72,10 +73,21 @@ class Receipt:
 
 
 def _normalise(value: object) -> Any:
+    if value is None or isinstance(value, (bool, int, str)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("non-finite float is not JSON-safe")
+        return value
     if isinstance(value, Enum):
-        return value.value
+        return _normalise(value.value)
     if isinstance(value, dict):
-        return {str(key): _normalise(item) for key, item in value.items()}
+        normalised: dict[str, Any] = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError("JSON object keys must be strings")
+            normalised[key] = _normalise(item)
+        return normalised
     if isinstance(value, (tuple, list)):
         return [_normalise(item) for item in value]
-    return value
+    raise TypeError(f"unsupported JSON value type: {type(value).__name__}")
