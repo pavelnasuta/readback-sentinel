@@ -83,18 +83,21 @@ See [Project status](#project-status) for the complete scope boundary.
 
 ## Quick start
 
-### Prerequisites
-
-- Python 3.11+
-- [uv](https://docs.astral.sh/uv/)
-- `ffmpeg` for MP3/FLAC decoding
-- a local `faster-whisper` model setup for actual analysis
+Clone the repository, then inspect prerequisites before any installation:
 
 ```bash
 git clone https://github.com/pavelnasuta/readback-sentinel.git
 cd readback-sentinel
-uv sync --dev
+python3 scripts/bootstrap.py check --json
+```
 
+Read [INSTALL.md](INSTALL.md) for the receipt contract, manual macOS/Homebrew, Ubuntu/Debian, and Windows/winget prerequisites, explicit local-model consent, and privacy boundary. When the check is ready, the documented bootstrap commands synchronize the locked development environment and optionally prepare a model.
+
+### Prerequisites
+
+The bootstrap check reports whether the local environment has Python 3.11+, `uv`, and `ffmpeg`. A local `faster-whisper` model is required only for actual analysis and is prepared only with an explicit `--model` request.
+
+```bash
 # Engineering verification: synthetic tests only, no customer files or model download.
 uv run pytest -q
 ```

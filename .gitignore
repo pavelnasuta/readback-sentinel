@@ -24,6 +24,10 @@ eval/runs/
 *.docx
 *.xlsx
 
+# Bootstrap receipts and optional local model cache
+bootstrap-receipt*.json
+.bootstrap-model-cache/
+
 # Local implementation worktrees and agent ledgers
 .worktrees/
 .superpowers/

@@ -1,6 +1,6 @@
 [project]
 name = "readback-sentinel"
-version = "0.4.1"
+version = "0.5.0"
 description = "Local, evidence-first triage for narrated audio."
 requires-python = ">=3.11"
 dependencies = [

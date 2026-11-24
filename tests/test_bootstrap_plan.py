@@ -234,3 +234,30 @@ def test_invalid_model_is_rejected_by_pure_planning_layer(model: str) -> None:
 
     with pytest.raises(ValueError, match="model"):
         build_install_plan(receipt, model=model, skip_model=True, is_root=False)
+
+
+def test_model_plan_passes_operator_cache_to_helper() -> None:
+    """Catches discarding an explicit model cache before the model helper executes."""
+    receipt = _receipt(
+        ComponentStatus("ffmpeg", ComponentState.READY),
+        ComponentStatus("uv", ComponentState.READY),
+    )
+
+    steps = build_install_plan(
+        receipt,
+        model="small",
+        skip_model=False,
+        is_root=False,
+        model_cache="/operator/chosen/cache",
+    )
+
+    assert steps[-1].argv == (
+        "uv",
+        "run",
+        "python",
+        "scripts/prepare_model.py",
+        "--model",
+        "small",
+        "--cache-dir",
+        "/operator/chosen/cache",
+    )

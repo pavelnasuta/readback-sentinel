@@ -16,6 +16,7 @@ def build_install_plan(
     model: str | None,
     skip_model: bool,
     is_root: bool,
+    model_cache: str | None = None,
 ) -> tuple[Step, ...]:
     """Build a deterministic plan without executing commands or inspecting state."""
     _validate_model(model)
@@ -72,6 +73,7 @@ def build_install_plan(
                         "scripts/prepare_model.py",
                         "--model",
                         model,
+                        *( ("--cache-dir", model_cache) if model_cache is not None else () ),
                     ),
                     requires_network=True,
                 )

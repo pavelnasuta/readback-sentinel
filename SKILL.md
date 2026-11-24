@@ -17,13 +17,28 @@ description: "Use when triaging narrated audio against source text safely."
 - Не помещай клиентские аудио, тексты, транскрипты и глоссарии в Git.
 - `--reference` не реализован.
 
-## Точный исполняемый источник
+## Portable bootstrap v0.5.0
 
-До установки релиза запускай репозиторную версию:
+Before any setup, run the generic repository CLI and read its receipt:
 
 ```bash
-cd "$HOME/Documents/GitHub/readback-sentinel"
-uv sync --dev
+python3 scripts/bootstrap.py check --json
+```
+
+If the receipt reports `ACTION_REQUIRED`, tell the operator which prerequisite needs a manual macOS/Homebrew, Ubuntu/Debian `sudo`, or Windows/winget action; do not run it. Ask permission separately for dependency installation and for any model download. After approval, use only this same CLI—there is no second installer path:
+
+```bash
+python3 scripts/bootstrap.py install --yes --skip-model --json
+python3 scripts/bootstrap.py install --yes --model small --json
+```
+
+Use `--skip-model` when no model download was approved. A model is prepared only when the operator explicitly chose `--model tiny`, `--model base`, or `--model small`; pass `--model-cache PATH` only when they selected its local cache location. JSON receipts must be read before moving to the next consent boundary.
+
+## Точный исполняемый источник
+
+Для QC-анализа после успешной установки используй репозиторную версию:
+
+```bash
 uv run python scripts/run_qc.py \
   --audio "/absolute/recording.wav" \
   --text "/absolute/source.pdf" \

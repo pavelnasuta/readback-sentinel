@@ -8,6 +8,15 @@
 
 - Будущий server/cloud-контур остаётся в документации handoff и не реализован этим релизом.
 
+## [0.5.0] — portable bootstrap
+
+- Добавлен безопасный bootstrap с read-only проверкой, JSON receipt и явным подтверждением неэскалированных шагов установки.
+- Локальная загрузка модели возможна только при явном `--model`; проверка и `--skip-model` модель не запрашивают.
+- Добавлены инструкции для ручной настройки macOS/Homebrew, Ubuntu/Debian и Windows/winget, а также synthetic CI matrix.
+- Алгоритмы QC, точность аудио-анализа, пороги и production server/cloud-контур не менялись.
+
+Полное описание: [docs/releases/v0.5.0.md](docs/releases/v0.5.0.md).
+
 ## [0.4.1] — public project packaging
 
 - Проект получил публичное имя **Readback Sentinel** и README с явным human-in-the-loop позиционированием.
