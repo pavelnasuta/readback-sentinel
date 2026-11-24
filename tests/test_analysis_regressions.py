@@ -437,7 +437,7 @@ def test_failed_run_gets_unique_directory_and_failed_manifest(tmp_path: Path, mo
     run_dirs = [path for path in output.iterdir() if path.is_dir()]
     assert exit_code == 1
     assert len(run_dirs) == 1
-    manifest = json.loads(next(run_dirs[0].glob("run_manifest_*.json")).read_text())
+    manifest = json.loads(next(run_dirs[0].glob("run_manifest_*.json")).read_text(encoding="utf-8"))
     assert manifest["status"] == "FAILED"
     assert manifest["error"]["type"] == "RuntimeError"
     assert manifest["inputs"][0]["filename"] == "audio.wav"
@@ -511,7 +511,7 @@ def test_confirmation_exports_from_review_report_without_rerunning_asr(tmp_path:
     ])
 
     run_dir = next(path for path in (tmp_path / "runs").iterdir() if path.is_dir())
-    manifest = json.loads(next(run_dir.glob("run_manifest_*.json")).read_text())
+    manifest = json.loads(next(run_dir.glob("run_manifest_*.json")).read_text(encoding="utf-8"))
     assert exit_code == 0
     assert (run_dir / "перепись_same.docx").is_file()
     assert (run_dir / "audition_markers_same.csv").is_file()
@@ -570,6 +570,6 @@ def test_failed_confirmation_does_not_leave_a_cue_sidecar(tmp_path: Path, monkey
     ]) == 1
 
     run_dir = next((tmp_path / "runs").iterdir())
-    manifest = json.loads(next(run_dir.glob("run_manifest_*.json")).read_text())
+    manifest = json.loads(next(run_dir.glob("run_manifest_*.json")).read_text(encoding="utf-8"))
     assert manifest["status"] == "FAILED"
     assert not (run_dir / "audition_markers_same.cue").exists()
