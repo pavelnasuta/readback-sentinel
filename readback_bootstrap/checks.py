@@ -96,8 +96,11 @@ def _default_which(name: str, system: str) -> str | None:
     for directory in _executable_directories(system):
         for suffix in suffixes:
             candidate = directory / f"{name}{suffix}"
-            if candidate.is_file() and os.access(candidate, os.X_OK):
-                return str(candidate)
+            if not candidate.is_file() or not os.access(candidate, os.X_OK):
+                continue
+            if system != "Windows" and not candidate.stat().st_mode & 0o111:
+                continue
+            return str(candidate)
     return None
 
 

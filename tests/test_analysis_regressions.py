@@ -428,7 +428,7 @@ def test_failed_run_gets_unique_directory_and_failed_manifest(tmp_path: Path, mo
         wav.setparams((1, 2, 16_000, 16_000, "NONE", "raw"))
         wav.writeframes(b"\0\0" * 16_000)
     text = tmp_path / "text.txt"
-    text.write_text("проверочный текст")
+    text.write_text("проверочный текст", encoding="utf-8")
     output = tmp_path / "runs"
     monkeypatch.setattr(module, "transcribe", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("injected failure")))
 
@@ -456,7 +456,7 @@ def test_each_analysis_run_uses_a_new_directory(tmp_path: Path, monkeypatch) -> 
         wav.setparams((1, 2, 16_000, 16_000, "NONE", "raw"))
         wav.writeframes(b"\0\0" * 16_000)
     text = tmp_path / "text.txt"
-    text.write_text("проверочный текст")
+    text.write_text("проверочный текст", encoding="utf-8")
     output = tmp_path / "runs"
     monkeypatch.setattr(module, "transcribe", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("stop")))
 
@@ -481,7 +481,7 @@ def test_confirmation_exports_from_review_report_without_rerunning_asr(tmp_path:
         wav.setparams((1, 2, 16_000, 16_000, "NONE", "raw"))
         wav.writeframes(b"\0\0" * 16_000)
     text = tmp_path / "text.txt"
-    text.write_text("проверочный текст")
+    text.write_text("проверочный текст", encoding="utf-8")
     flags = [
         {"id": "ac_5000", "timestamp": 0.0, "timestamp_end": 1.0,
          "severity": "CRITICAL", "category": "SILENT_AUDIO",
@@ -544,7 +544,7 @@ def test_failed_confirmation_does_not_leave_a_cue_sidecar(tmp_path: Path, monkey
         wav.setparams((1, 2, 16_000, 16_000, "NONE", "raw"))
         wav.writeframes(b"\0\0" * 16_000)
     text = tmp_path / "text.txt"
-    text.write_text("проверочный текст")
+    text.write_text("проверочный текст", encoding="utf-8")
     flags = [{"id": "ac_5000", "timestamp": 0.0, "timestamp_end": 1.0,
               "severity": "CRITICAL", "category": "SILENT_AUDIO",
               "description": "кандидат", "action": "проверить"}]

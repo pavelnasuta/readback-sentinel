@@ -39,8 +39,8 @@ def test_runtime_thresholds_only_expose_active_detection_controls() -> None:
 def test_runtime_config_rejects_unsafe_narrator_routing(tmp_path: Path) -> None:
     thresholds = tmp_path / "thresholds.yaml"
     policy = tmp_path / "policy.yaml"
-    thresholds.write_text((ROOT / "configs" / "thresholds.yaml").read_text(), encoding="utf-8")
-    policy.write_text((ROOT / "configs" / "policy.yaml").read_text().replace(
+    thresholds.write_text((ROOT / "configs" / "thresholds.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    policy.write_text((ROOT / "configs" / "policy.yaml").read_text(encoding="utf-8").replace(
         "narrator_docx: confirmed_only", "narrator_docx: all_candidates"
     ), encoding="utf-8")
 

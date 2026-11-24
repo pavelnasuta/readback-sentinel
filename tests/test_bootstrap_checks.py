@@ -220,3 +220,20 @@ def test_default_resolver_rejects_non_executable_file(
     monkeypatch.setattr(checks, "_executable_directories", lambda _system: (tmp_path,))
 
     assert checks._default_which("ffmpeg", "Darwin") is None
+
+
+def test_default_resolver_uses_target_specific_executable_rules(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Non-Windows targets require mode bits even if host access allows the file."""
+    bare = tmp_path / "ffmpeg"
+    windows_executable = tmp_path / "ffmpeg.exe"
+    bare.write_text("not executable", encoding="utf-8")
+    windows_executable.write_text("windows executable", encoding="utf-8")
+    bare.chmod(0o644)
+    windows_executable.chmod(0o644)
+    monkeypatch.setattr(checks, "_executable_directories", lambda _system: (tmp_path,))
+    monkeypatch.setattr(checks.os, "access", lambda _path, _mode: True)
+
+    assert checks._default_which("ffmpeg", "Darwin") is None
+    assert checks._default_which("ffmpeg", "Windows") == str(windows_executable)
