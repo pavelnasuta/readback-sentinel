@@ -482,9 +482,14 @@ def test_confirmation_exports_from_review_report_without_rerunning_asr(tmp_path:
         wav.writeframes(b"\0\0" * 16_000)
     text = tmp_path / "text.txt"
     text.write_text("проверочный текст")
-    flags = [{"id": "ac_5000", "timestamp": 0.0, "timestamp_end": 1.0,
-              "severity": "CRITICAL", "category": "SILENT_AUDIO",
-              "description": "кандидат", "action": "проверить"}]
+    flags = [
+        {"id": "ac_5000", "timestamp": 0.0, "timestamp_end": 1.0,
+         "severity": "CRITICAL", "category": "SILENT_AUDIO",
+         "description": "кандидат", "action": "проверить"},
+        {"id": "flag_0001", "timestamp": 2.0, "timestamp_end": 3.0,
+         "severity": "REVIEW", "category": "WORD_SUBSTITUTION",
+         "description": "не подтверждён", "action": "не экспортировать"},
+    ]
     inputs = [input_record(audio, "audio"), input_record(text, "printed_text")]
     binding = build_review_binding(inputs=inputs, config_hashes={"thresholds": "t", "policy": "p"},
                                    model="medium", language="uk", flags=flags)
@@ -510,8 +515,61 @@ def test_confirmation_exports_from_review_report_without_rerunning_asr(tmp_path:
     assert exit_code == 0
     assert (run_dir / "перепись_same.docx").is_file()
     assert (run_dir / "audition_markers_same.csv").is_file()
-    assert set(manifest["artifacts"]) == {"перепись_same.docx", "audition_markers_same.csv"}
+    cue = run_dir / "audition_markers_same.cue"
+    assert cue.is_file()
+    assert "REM READBACK_SENTINEL HUMAN_CONFIRMED_ONLY" in cue.read_text(encoding="utf-8")
+    assert "ac_5000" in cue.read_text(encoding="utf-8")
+    assert "flag_0001" not in cue.read_text(encoding="utf-8")
+    assert set(manifest["artifacts"]) == {
+        "перепись_same.docx", "audition_markers_same.csv", "audition_markers_same.cue",
+    }
     assert manifest["model"] == "medium"
     assert manifest["language"] == "uk"
     assert manifest["config_versions"] == {"thresholds": 7, "policy": 8}
     assert manifest["config_hashes"] == {"thresholds": "t", "policy": "p"}
+
+
+def test_failed_confirmation_does_not_leave_a_cue_sidecar(tmp_path: Path, monkeypatch) -> None:
+    import importlib.util
+    import wave
+
+    from audiobook_qc.manifest import build_review_binding, input_record
+
+    spec = importlib.util.spec_from_file_location("qc_runner_failed_confirmation", ROOT / "scripts/run_qc.py")
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    audio = tmp_path / "audio.wav"
+    with wave.open(str(audio), "wb") as wav:
+        wav.setparams((1, 2, 16_000, 16_000, "NONE", "raw"))
+        wav.writeframes(b"\0\0" * 16_000)
+    text = tmp_path / "text.txt"
+    text.write_text("проверочный текст")
+    flags = [{"id": "ac_5000", "timestamp": 0.0, "timestamp_end": 1.0,
+              "severity": "CRITICAL", "category": "SILENT_AUDIO",
+              "description": "кандидат", "action": "проверить"}]
+    inputs = [input_record(audio, "audio"), input_record(text, "printed_text")]
+    binding = build_review_binding(
+        inputs=inputs, config_hashes={"thresholds": "t", "policy": "p"},
+        model="medium", language="uk", flags=flags,
+    )
+    report = tmp_path / "report.json"
+    report.write_text(json.dumps({
+        "status": "PRELIMINARY_TRIAGE_REQUIRED", "review_binding": binding,
+        "inputs": inputs, "config_hashes": {"thresholds": "t", "policy": "p"},
+        "config_versions": {"thresholds": 7, "policy": 8},
+        "model": "medium", "language": "uk", "flags": flags,
+    }))
+    confirmation = tmp_path / "confirmation.json"
+    confirmation.write_text(json.dumps({"review_binding": binding, "confirmed_flag_ids": ["ac_5000"]}))
+    monkeypatch.setattr(module, "write_confirmed_docx", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("injected failure")))
+
+    assert module.main([
+        "--audio", str(audio), "--text", str(text), "--output", str(tmp_path / "runs"), "--tag", "same",
+        "--confirmed-flags", str(confirmation), "--review-report", str(report),
+    ]) == 1
+
+    run_dir = next((tmp_path / "runs").iterdir())
+    manifest = json.loads(next(run_dir.glob("run_manifest_*.json")).read_text())
+    assert manifest["status"] == "FAILED"
+    assert not (run_dir / "audition_markers_same.cue").exists()

@@ -27,6 +27,7 @@ from audiobook_qc.config import ConfigError, RuntimeConfig, load_runtime_config
 from audiobook_qc.exports import (
     save_prosody_figure,
     write_confirmed_docx,
+    write_cue,
     write_marker_csv,
     write_pdf,
     write_triage_docx,
@@ -303,6 +304,7 @@ def _run_analysis(
     marker_path = write_marker_csv(triage_flags, str(run_dir), args.tag, "triage_markers")
     triage_path = write_triage_docx(triage_flags, str(run_dir), args.tag, Path(args.audio).name)
     pdf_path = write_pdf(report, str(run_dir), args.tag)
+    cue_path = write_cue(triage_flags, run_dir, args.tag, "triage_markers", Path(args.audio).name)
     manifest.finish(
         "COMPLETED",
         artifacts=[
@@ -311,6 +313,7 @@ def _run_analysis(
             transcript_paths[0].name,
             transcript_paths[1].name,
             marker_path.name,
+            cue_path.name,
             triage_path.name,
             prosody_path.name,
         ],
@@ -359,7 +362,8 @@ def _run_confirmation(
     confirmed = [flag for flag in reviewable if flag.get("id") in confirmed_ids]
     marker_path = write_marker_csv(confirmed, str(run_dir), args.tag, "audition_markers")
     docx_path = write_confirmed_docx(confirmed, str(run_dir), args.tag, Path(args.audio).name)
-    manifest.finish("COMPLETED", artifacts=[docx_path.name, marker_path.name])
+    cue_path = write_cue(confirmed, run_dir, args.tag, "audition_markers", Path(args.audio).name)
+    manifest.finish("COMPLETED", artifacts=[docx_path.name, marker_path.name, cue_path.name])
 
 
 def _build_parser() -> argparse.ArgumentParser:

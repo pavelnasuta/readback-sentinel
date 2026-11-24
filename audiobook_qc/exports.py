@@ -4,7 +4,10 @@ from __future__ import annotations
 import csv
 import math
 import os
+import re
+import tempfile
 from collections.abc import Sequence
+from numbers import Real
 from pathlib import Path
 from typing import Any
 from xml.sax.saxutils import escape
@@ -53,6 +56,101 @@ def write_marker_csv(flags: Sequence[dict[str, Any]], out_path: str, tag: str, s
                 f"{fl['category']}: {fl['description'][:80]}",
             ])
     print(f"[CSV] {path} ({len(flags)} markers)", flush=True)
+    return path
+
+
+_CUE_HEADLINES = {
+    "triage_markers": "REM READBACK_SENTINEL PRELIMINARY_TRIAGE_REQUIRES_HUMAN_REVIEW",
+    "audition_markers": "REM READBACK_SENTINEL HUMAN_CONFIRMED_ONLY",
+}
+
+
+def _cue_safe_text(value: object) -> str:
+    """Keep quoted CUE fields single-line and free of quote delimiters."""
+    return re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", str(value)).replace('"', "'")
+
+
+def _cue_timestamp(timestamp: object) -> tuple[float, str]:
+    if isinstance(timestamp, bool) or not isinstance(timestamp, Real):
+        raise ValueError("CUE marker timestamp must be a finite non-negative numeric value.")
+    seconds = float(timestamp)
+    if not math.isfinite(seconds) or seconds < 0:
+        raise ValueError("CUE marker timestamp must be a finite non-negative numeric value.")
+    total_frames_value = seconds * 75
+    if not math.isfinite(total_frames_value):
+        raise ValueError("CUE marker timestamp is too large to convert to 75 fps.")
+    total_frames = math.floor(total_frames_value)
+    minutes, remainder = divmod(total_frames, 60 * 75)
+    seconds_part, frames = divmod(remainder, 75)
+    return seconds, f"{minutes:02d}:{seconds_part:02d}:{frames:02d}"
+
+
+def write_cue(
+    flags: Sequence[dict[str, Any]],
+    out_path: str | Path,
+    tag: str,
+    base_name: str,
+    audio_filename: str | Path,
+) -> Path:
+    """Write a standard CUE listening map without candidate body content."""
+    try:
+        headline = _CUE_HEADLINES[base_name]
+    except KeyError as error:
+        raise ValueError(f"Unsupported CUE base name: {base_name}") from error
+    if not isinstance(tag, str) or not tag or not re.fullmatch(r"[\w.-]+", tag, flags=re.UNICODE):
+        raise ValueError("CUE tag may contain only letters, digits, underscore, dot, and hyphen.")
+
+    emitted: list[tuple[float, str, dict[str, Any], str]] = []
+    for flag in flags:
+        if flag.get("severity") not in {"CRITICAL", "REVIEW"}:
+            continue
+        timestamp, index = _cue_timestamp(flag.get("timestamp"))
+        identifier = str(flag["id"])
+        emitted.append((timestamp, identifier, flag, index))
+    emitted.sort(key=lambda marker: (marker[0], marker[1]))
+    if len(emitted) > 99:
+        raise ValueError("Standard CUE supports at most 99 emitted markers.")
+
+    audio_name = _cue_safe_text(Path(audio_filename).name)
+    lines = [
+        headline,
+        'PERFORMER "Readback Sentinel"',
+        f'TITLE "Review markers — {audio_name}"',
+        f'FILE "{audio_name}" WAVE',
+    ]
+    for track_number, (_timestamp, identifier, flag, index) in enumerate(emitted, start=1):
+        severity = _cue_safe_text(flag["severity"])
+        category = _cue_safe_text(flag["category"])
+        safe_identifier = _cue_safe_text(identifier)
+        lines.extend([
+            f"  TRACK {track_number:02d} AUDIO",
+            f'    TITLE "[{severity}] {category} — {safe_identifier}"',
+            "    REM HUMAN_REVIEW_REQUIRED",
+            f"    INDEX 01 {index}",
+        ])
+
+    path = Path(out_path) / f"{base_name}_{tag}.cue"
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+            temporary.write("\n".join(lines) + "\n")
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        temporary_path.replace(path)
+    except Exception:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        raise
+    print(f"[CUE] {path} ({len(emitted)} markers)", flush=True)
     return path
 
 

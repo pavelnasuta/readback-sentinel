@@ -32,8 +32,8 @@ It combines local speech recognition, conservative text alignment and native aud
 - timestamped candidates where recognised speech and the printed source diverge;
 - clipping, silence and basic acoustic observations;
 - optional glossary candidates;
-- a preliminary PDF, JSON, DOCX and Audition-compatible CSV;
-- a separate confirmation path that produces narrator-facing files only from human-confirmed candidates.
+- a preliminary PDF, JSON, DOCX, Audition-compatible CSV and standard CUE listening map;
+- a separate confirmation path that produces narrator-facing files and a confirmation-only CUE map from human-confirmed candidates.
 
 It is designed for editors, producers and audio teams who want a shorter, evidence-linked listening queue — **not** an automated verdict on a narrator’s work.
 
@@ -53,7 +53,7 @@ flowchart LR
     C --> E[Evidence-linked review candidates]
     D --> E
     E --> F[Editor listens and decides]
-    F --> G[Confirmed DOCX + Audition CSV]
+    F --> G[Confirmed DOCX + Audition CSV + CUE]
 ```
 
 The product boundary is deliberate: machines locate things worth checking; people decide whether something is actually wrong.
@@ -67,7 +67,7 @@ The product boundary is deliberate: machines locate things worth checking; peopl
 | **Glossary support** | Creates conservative review candidates for whole single- and multi-word glossary variants. It does not prove phonetic correctness. |
 | **Technical checks** | Checks source channels for clipping, reports quiet intervals and records diagnostic acoustic values. |
 | **Prosody** | Reports diagnostic F0 observations. It does not claim that a performance is expressive or artistically correct. |
-| **Review artifacts** | Creates preliminary PDF, JSON, DOCX and CSV outputs; then creates narrator-facing outputs only from a bound human confirmation. |
+| **Review artifacts** | Creates preliminary PDF, JSON, DOCX, CSV and CUE listening-map outputs; then creates narrator-facing outputs and an Audition/CUE map only from a bound human confirmation. |
 | **Run integrity** | Uses isolated run folders, manifests, input hashes and review bindings so confirmation cannot silently target another analysis attempt. |
 
 ## What it deliberately does **not** claim
@@ -133,6 +133,7 @@ qc_runs/
     ├── report_chapter_01.pdf
     ├── triage_chapter_01.docx
     ├── triage_markers_chapter_01.csv
+    ├── triage_markers_chapter_01.cue
     ├── transcript_chapter_01.txt
     ├── transcript_segments_chapter_01.json
     └── prosody_chapter_01.png
@@ -178,7 +179,7 @@ uv run python scripts/run_qc.py \
   --confirmed-flags "/absolute/path/confirmed_chapter_01.json"
 ```
 
-This mode does not rerun ASR. It verifies the source hashes, report binding and candidate IDs, then creates a fresh confirmation directory containing only the confirmed DOCX and CSV outputs.
+This mode does not rerun ASR. It verifies the source hashes, report binding and candidate IDs, then creates a fresh confirmation directory containing only the confirmed DOCX, CSV and CUE outputs. The CUE files are listening maps: preliminary CUEs contain only `CRITICAL`/`REVIEW` candidates and retain the human-review warning, while confirmation CUEs contain only explicitly confirmed IDs. Neither CUE includes transcript, printed-book text or free-form candidate descriptions.
 
 ## Safety contract
 
@@ -186,7 +187,7 @@ Readback Sentinel follows four non-negotiable rules:
 
 1. **No customer content in Git.** Audio, books, transcripts, glossaries, vectors and generated customer reports are ignored and must remain private.
 2. **Fail closed on uncertain alignment.** If the system cannot securely locate the spoken fragment in the source, it returns `ALIGNMENT_FAILED` rather than inventing a diff.
-3. **Human confirmation before external action.** Narrator-facing DOCX and final Audition CSV are derived only from an explicitly reviewed, bound snapshot.
+3. **Human confirmation before external action.** Narrator-facing DOCX plus final Audition CSV/CUE maps are derived only from an explicitly reviewed, bound snapshot.
 4. **Unknown is not clean.** A missing candidate, unavailable method or incomplete coverage never becomes an automatic “no defect” conclusion.
 
 For engineering contributors, the detailed rules live in [AGENTS.md](AGENTS.md).
