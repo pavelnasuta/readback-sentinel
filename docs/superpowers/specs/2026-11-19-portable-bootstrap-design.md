@@ -1,8 +1,8 @@
 # Portable bootstrap design
 
-**Status:** approved design; implementation not started  
-**Target release:** v0.5.0  
-**Repository:** Readback Sentinel  
+**Status:** approved design; implementation not started
+**Target release:** v0.5.0
+**Repository:** Readback Sentinel
 **Decision:** 2026-11-19
 
 ## Goal
