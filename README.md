@@ -1,89 +1,53 @@
 # Readback Sentinel
 
-<p align="center">
-  <strong>Local, evidence-first quality triage for narrated audio</strong><br />
-  A practical open-source toolkit for finding review-worthy text and technical risks — without pretending that an ASR model can judge a narrator.
-</p>
+> **Локальный инструмент первичного контроля начитки по исходному тексту.**
+> Он находит места, которые стоит переслушать человеку, — но не выносит автоматический вердикт о качестве работы диктора.
 
-<p align="center">
-  <a href="#what-it-is">What it is</a> ·
-  <a href="#quick-start">Quick start</a> ·
-  <a href="#workflow">Workflow</a> ·
-  <a href="#safety-contract">Safety contract</a> ·
-  <a href="#project-status">Status</a> ·
-  <a href="#contributing">Contributing</a>
-</p>
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Лицензия MIT](https://img.shields.io/badge/License-MIT-1f883d)](LICENSE)
+[![Локальная обработка](https://img.shields.io/badge/обработка-local--first-7c3aed)](#конфиденциальность-и-безопасность)
+[![Решение принимает человек](https://img.shields.io/badge/решение-человек-D97706)](#главное-правило)
 
-<p align="center">
-  <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&amp;logoColor=white" />
-  <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-1f883d" />
-  <img alt="Processing Local" src="https://img.shields.io/badge/Processing-local%20first-7c3aed" />
-  <img alt="Human review required" src="https://img.shields.io/badge/Decision-human%20review%20required-D97706" />
-</p>
+**[Быстрый старт](#быстрый-старт) · [Как работает](#как-это-работает) · [Артефакты](#что-получается-на-выходе) · [Подтверждение](#подтверждение-редактором) · [Ограничения](#чего-инструмент-не-делает) · [Документация](#документация)**
 
 ---
 
-## What it is
+## Зачем нужен Readback Sentinel
 
-**Readback Sentinel** is a local, headless Python toolkit for the first-pass review of audiobook narration and other scripted voice recordings.
+Сверять длинную аудиозапись с книгой или сценарием вручную долго. Но слепо доверять ASR небезопасно: имена, термины, числа, интонация и темп речи регулярно создают ложные срабатывания.
 
-It combines local speech recognition, conservative text alignment and native audio checks to produce a **review package**:
+Readback Sentinel сужает зону ручной проверки:
 
-- timestamped candidates where recognised speech and the printed source diverge;
-- clipping, silence and basic acoustic observations;
-- optional glossary candidates;
-- a preliminary PDF, JSON, DOCX, Audition-compatible CSV and standard CUE listening map;
-- a separate confirmation path that produces narrator-facing files and a confirmation-only CUE map from human-confirmed candidates.
+1. локально распознаёт запись;
+2. осторожно привязывает распознанный фрагмент к PDF, DOCX или TXT;
+3. формирует текстовые, глоссарные и технические кандидаты с таймкодами;
+4. отдаёт редактору и звукорежиссёру материалы для прослушивания;
+5. создаёт финальные редакторские артефакты только из явно подтверждённых пунктов.
 
-It is designed for editors, producers and audio teams who want a shorter, evidence-linked listening queue — **not** an automated verdict on a narrator’s work.
+Инструмент рассчитан на редактора, звукорежиссёра, продюсера и команду производства аудиокниг, которым нужна проверяемая очередь для прослушивания, а не «оценка выразительности нейросетью».
 
-> [!IMPORTANT]
-> A candidate is not a defect. ASR confidence, text similarity, F0 and amplitude metrics are evidence signals, not proof that a narrator made a mistake.
+## Главное правило
 
-## The problem it addresses
+> **Кандидат не равен ошибке.**
+> Расхождение ASR с книгой, низкая уверенность распознавания, F0, громкость или другой автоматический сигнал — повод проверить участок, а не доказательство брака начитки.
 
-Reviewing long spoken recordings against a source text is costly. Yet blindly trusting speech-to-text is unsafe: uncommon names, terms, numbers and expressive delivery can all cause false flags.
+Если текст нельзя надёжно сопоставить с записью, инструмент возвращает `ALIGNMENT_FAILED` и **не придумывает** текстовые расхождения. Неполное покрытие, недоступный модуль или сбой анализа никогда не означают «всё чисто» и никогда не являются виной диктора.
 
-Readback Sentinel narrows the manual review surface:
+## Что умеет сейчас
 
-```mermaid
-flowchart LR
-    A[Source text] --> C[Conservative alignment]
-    B[Local audio] --> D[Local ASR + native audio checks]
-    C --> E[Evidence-linked review candidates]
-    D --> E
-    E --> F[Editor listens and decides]
-    F --> G[Confirmed DOCX + Audition CSV + CUE]
-```
-
-The product boundary is deliberate: machines locate things worth checking; people decide whether something is actually wrong.
-
-## What it does today
-
-| Area | Current behavior |
+| Задача | Что делает |
 |---|---|
-| **Text localisation** | Finds a securely aligned read fragment inside PDF, DOCX or UTF-8 TXT source material. Ambiguous alignment fails closed instead of comparing against the wrong passage. |
-| **Text comparison** | Emits `REVIEW` candidates for additions, omissions and substitutions in the aligned scope. It does not label them narrator errors automatically. |
-| **Glossary support** | Creates conservative review candidates for whole single- and multi-word glossary variants. It does not prove phonetic correctness. |
-| **Technical checks** | Checks source channels for clipping, reports quiet intervals and records diagnostic acoustic values. |
-| **Prosody** | Reports diagnostic F0 observations. It does not claim that a performance is expressive or artistically correct. |
-| **Review artifacts** | Creates preliminary PDF, JSON, DOCX, CSV and CUE listening-map outputs; then creates narrator-facing outputs and an Audition/CUE map only from a bound human confirmation. |
-| **Run integrity** | Uses isolated run folders, manifests, input hashes and review bindings so confirmation cannot silently target another analysis attempt. |
+| **Привязка к исходнику** | Ищет прочитанный фрагмент в PDF, DOCX или UTF-8 TXT. Неоднозначная привязка останавливает текстовое сравнение. |
+| **Сверка текста** | Формирует `REVIEW`-кандидаты для добавлений, пропусков и замен в надёжно найденном окне. |
+| **Глоссарий** | Ищет целые одно- и многословные варианты терминов как кандидаты на прослушивание. |
+| **Технические сигналы** | Отмечает клиппинг, тихие интервалы и диагностические акустические наблюдения. |
+| **Просодика** | Даёт диагностические наблюдения F0; не оценивает художественную выразительность. |
+| **Контроль целостности** | Хранит изолированные попытки, манифесты, хеши входов и `review_binding`, чтобы подтверждение не применилось к другому отчёту. |
+| **Локальная установка** | Помогает проверить и подготовить зависимости на macOS, Ubuntu/Debian и Windows. |
 
-## What it deliberately does **not** claim
+## Быстрый старт
 
-- It does **not** establish that a narrator is correct, expressive, monotone, tired or “good”.
-- It does **not** equate ASR confidence or string similarity with truth.
-- It does **not** measure real-world precision, recall or false-positive rate without a labelled evaluation set.
-- It does **not** infer a production noise standard from an amplitude percentile.
-- It does **not** implement comparison against an approved reference performance yet; `--reference` is rejected before analysis.
-- It does **not** include a server, queue, dashboard, upload service or deployment recipe.
-
-See [Project status](#project-status) for the complete scope boundary.
-
-## Quick start
-
-Clone the repository, then inspect prerequisites before any installation:
+### 1. Склонируйте проект и проверьте окружение
 
 ```bash
 git clone https://github.com/pavelnasuta/readback-sentinel.git
@@ -91,39 +55,90 @@ cd readback-sentinel
 python3 scripts/bootstrap.py check --json
 ```
 
-Read [INSTALL.md](INSTALL.md) for the receipt contract, manual macOS/Homebrew, Ubuntu/Debian, and Windows/winget prerequisites, explicit local-model consent, and privacy boundary. When the check is ready, the documented bootstrap commands synchronize the locked development environment and optionally prepare a model.
+`check` ничего не устанавливает и ничего не скачивает. Он сообщает, готовы ли Python 3.11+, `uv`, `ffmpeg`, конфигурация проекта и lockfile.
 
-### Prerequisites
+Если receipt вернул `ACTION_REQUIRED`, сначала выполните указанное ручное действие и снова запустите проверку. Это безопасная остановка, а не частичный успех.
 
-The bootstrap check reports whether the local environment has Python 3.11+, `uv`, and `ffmpeg`. A local `faster-whisper` model is required only for actual analysis and is prepared only with an explicit `--model` request.
+### 2. Явно подтвердите установку зависимостей
 
 ```bash
-# Engineering verification: synthetic tests only, no customer files or model download.
-uv run pytest -q
+# Зависимости проекта — без модели.
+python3 scripts/bootstrap.py install --yes --skip-model --json
+
+# Только если нужна локальная ASR-модель.
+python3 scripts/bootstrap.py install --yes --model small --json
 ```
 
-### Analyse one recording
+Bootstrap не запускает `sudo` или UAC, не выполняет текст ручных инструкций и не скачивает модель без явного `--model tiny|base|small`. Подробности, включая macOS/Homebrew, Ubuntu/Debian и Windows/winget, — в [INSTALL.md](INSTALL.md).
 
-Use a new output directory outside the source-material folder. Customer media, books, transcripts, glossaries and run outputs must remain outside Git.
+### 3. Запустите анализ одной записи
+
+Исходные материалы и результаты храните **вне Git** и в отдельной папке результатов.
 
 ```bash
 uv run python scripts/run_qc.py \
-  --audio "/absolute/path/recording.wav" \
-  --text "/absolute/path/source.pdf" \
-  --output "/absolute/path/qc_runs" \
+  --audio "/путь/к/записи.wav" \
+  --text "/путь/к/исходнику.pdf" \
+  --output "/путь/к/qc_runs" \
   --model small \
   --tag chapter_01
 ```
 
-Supported input formats:
-
-| Input | Formats |
+| Вход | Форматы |
 |---|---|
-| Audio | WAV, MP3, FLAC — MP3/FLAC require `ffmpeg` |
-| Source text | PDF, DOCX, UTF-8 TXT |
-| Glossary | Optional JSON array of `{term, transcription, notes}` |
+| Аудио | WAV, MP3, FLAC; для MP3/FLAC нужен `ffmpeg` |
+| Исходный текст | PDF, DOCX, UTF-8 TXT |
+| Глоссарий | Необязательный JSON-массив `{term, transcription, notes}` |
 
-Each attempt writes its own folder:
+## Как это работает
+
+```mermaid
+flowchart LR
+    A[Исходный текст] --> C[Осторожная привязка]
+    B[Локальный аудиофайл] --> D[Локальный ASR и технические проверки]
+    C --> E[Кандидаты с таймкодами]
+    D --> E
+    E --> F[Редактор или звукорежиссёр слушает и решает]
+    F --> G[Подтверждённые DOCX, CSV и CUE]
+```
+
+### 1. Предварительный анализ
+
+Создаётся отдельная папка `analysis_<tag>_<run_id>/`. Повторный запуск не перезаписывает предыдущую попытку.
+
+### 2. Ручная проверка
+
+Редактор слушает каждый кандидат и решает, что это:
+
+- подтверждённое замечание;
+- ложное срабатывание ASR;
+- допустимый вариант;
+- неясный случай.
+
+### 3. Подтверждённый экспорт
+
+Только после ручной проверки создаётся файл с подтверждёнными ID, привязанный к точному снимку отчёта:
+
+```json
+{
+  "review_binding": "<точное значение из report_*.json>",
+  "confirmed_flag_ids": ["flag_0000", "ac_5000"]
+}
+```
+
+```bash
+uv run python scripts/run_qc.py \
+  --audio "/путь/к/записи.wav" \
+  --text "/путь/к/исходнику.pdf" \
+  --output "/путь/к/qc_runs" \
+  --tag chapter_01 \
+  --review-report "/путь/к/analysis_<run_id>/report_chapter_01.json" \
+  --confirmed-flags "/путь/к/confirmed_chapter_01.json"
+```
+
+В этом режиме ASR не запускается повторно: инструмент проверяет хеши входов, `review_binding` и ID, а затем создаёт новую папку подтверждения.
+
+## Что получается на выходе
 
 ```text
 qc_runs/
@@ -139,115 +154,89 @@ qc_runs/
     └── prosody_chapter_01.png
 ```
 
-`COMPLETED` means that the computation completed; it does **not** mean that the recording was accepted.
-
-## Workflow
-
-### 1. Analyse locally
-
-The first run creates a reviewer package. It never authorises a narrator-facing correction list on its own.
-
-### 2. Review the candidates
-
-An editor listens to each candidate in the PDF or JSON report and decides whether it is:
-
-- confirmed;
-- a false ASR flag;
-- an allowed variant;
-- unclear.
-
-### 3. Export only confirmed items
-
-Create a confirmation file from the exact `review_binding` in the reviewed report:
-
-```json
-{
-  "review_binding": "<exact value from report JSON>",
-  "confirmed_flag_ids": ["flag_0000", "ac_5000"]
-}
-```
-
-Then run confirmation mode:
-
-```bash
-uv run python scripts/run_qc.py \
-  --audio "/absolute/path/recording.wav" \
-  --text "/absolute/path/source.pdf" \
-  --output "/absolute/path/qc_runs" \
-  --tag chapter_01 \
-  --review-report "/absolute/path/analysis_chapter_01_<run_id>/report_chapter_01.json" \
-  --confirmed-flags "/absolute/path/confirmed_chapter_01.json"
-```
-
-This mode does not rerun ASR. It verifies the source hashes, report binding and candidate IDs, then creates a fresh confirmation directory containing only the confirmed DOCX, CSV and CUE outputs. The CUE files are listening maps: preliminary CUEs contain only `CRITICAL`/`REVIEW` candidates and retain the human-review warning, while confirmation CUEs contain only explicitly confirmed IDs. Neither CUE includes transcript, printed-book text or free-form candidate descriptions.
-
-## Safety contract
-
-Readback Sentinel follows four non-negotiable rules:
-
-1. **No customer content in Git.** Audio, books, transcripts, glossaries, vectors and generated customer reports are ignored and must remain private.
-2. **Fail closed on uncertain alignment.** If the system cannot securely locate the spoken fragment in the source, it returns `ALIGNMENT_FAILED` rather than inventing a diff.
-3. **Human confirmation before external action.** Narrator-facing DOCX plus final Audition CSV/CUE maps are derived only from an explicitly reviewed, bound snapshot.
-4. **Unknown is not clean.** A missing candidate, unavailable method or incomplete coverage never becomes an automatic “no defect” conclusion.
-
-For engineering contributors, the detailed rules live in [AGENTS.md](AGENTS.md).
-
-## Project status
-
-This repository is a public **preview of a local QC core**. The test suite currently verifies synthetic behavior and safety contracts. It is not a claim of operational readiness on arbitrary real recordings.
-
-| Capability | Status |
+| Артефакт | Для чего нужен |
 |---|---|
-| Synthetic regression suite | Available |
-| Local single-file triage | Available |
-| Human-bound confirmation export | Available |
-| Representative natural-audio accuracy evaluation | Not measured |
-| Calibrated noise / artistic-performance decisions | Not available |
-| Approved-reference performance comparison | Not implemented |
-| Long-file resource qualification | Not measured |
-| Linux/server deployment | Not implemented |
-| Queue, dashboard, Telegram/Drive integration | Out of scope |
+| `report_*.json` / `report_*.pdf` | Предварительный отчёт и данные для редактора. |
+| `triage_*.docx` | Список кандидатов для разбора. |
+| `triage_markers_*.csv` | Маркеры для совместимого аудиоредактора. |
+| `triage_markers_*.cue` | Карта точек прослушивания для звукорежиссёра. Содержит только `CRITICAL` и `REVIEW`. |
+| `run_manifest_*.json` | Состояние попытки, входные хеши, версии и список артефактов. |
+| Транскрипты и график просодики | Вспомогательная локальная evidence-база, не готовый вердикт. |
 
-## Repository map
+### CUE для звукорежиссёра
 
-```text
-readback-sentinel/
-├── audiobook_qc/     # Core alignment, ASR, acoustic and export modules
-├── configs/          # Versioned thresholds and policy
-├── scripts/          # CLI entry point
-├── tests/            # Synthetic regression and safety contracts
-├── docs/             # Architecture, development and release documentation
-├── eval/             # Public schemas and examples — not client media
-├── SKILL.md          # Hermes skill entry point
-└── AGENTS.md         # Contribution and safety rules
-```
+`.cue` — не перечень доказанных ошибок, а карта переходов по записи.
 
-## Documentation
+- Предварительный `triage_markers_<tag>.cue` содержит только `CRITICAL` и `REVIEW` и явно помечен как требующий проверки человеком.
+- Подтверждённый `audition_markers_<tag>.cue` создаётся только из ID, которые редактор подтвердил вручную.
+- `STT_ARTIFACT`, текст книги, транскрипт и свободные описания кандидатов в CUE не попадают.
 
-- [Contribution guide](CONTRIBUTING.md)
-- [Security and privacy policy](SECURITY.md)
-- [Development workflow](docs/DEVELOPMENT.md)
-- [Technical pipeline specification](references/pipeline_spec.md)
-- [Release history](CHANGELOG.md)
-- [Architecture overview](docs/ARCHITECTURE.md)
+## Конфиденциальность и безопасность
 
-## Contributing
+- Аудио, книги, транскрипты, глоссарии, векторы, результаты QC и персональные данные не должны попадать в GitHub.
+- Readback Sentinel не загружает материалы в облако и не содержит upload-сервиса.
+- Bootstrap receipt не сохраняет stdout/stderr команд, environment, аргументы команд или приватные пути.
+- Модель загружается только по явной команде пользователя.
+- `COMPLETED` означает, что вычисление завершилось. Это **не** означает, что запись принята.
+- `PARTIAL`, `FAILED`, неизвестное покрытие или отсутствие кандидатов не означают ни вины диктора, ни автоматического одобрения.
 
-Contributions are welcome when they improve evidence quality without turning heuristic output into a verdict.
+## Чего инструмент не делает
 
-Before opening a pull request:
+Readback Sentinel намеренно **не**:
+
+- подтверждает, что диктор прочитал текст дословно;
+- оценивает художественную выразительность, «монотонность», усталость или общее качество исполнения;
+- превращает ASR confidence или похожесть строк в истину;
+- измеряет реальную precision/recall/FPR без размеченного eval-набора;
+- устанавливает стандарт шума по одному уровню амплитуды;
+- сравнивает запись с эталонной начиткой — `--reference` пока зарезервирован и отклоняется до анализа;
+- предоставляет сервер, очередь, дашборд, загрузку файлов или автоматическую отправку замечаний диктору.
+
+## Текущий статус
+
+Это публичный preview локального QC-ядра. Тесты проверяют синтетические сценарии и safety-контракты, но не доказывают точность на произвольных реальных записях.
+
+| Возможность | Статус |
+|---|---|
+| Синтетические регрессионные тесты | Доступно |
+| Локальный анализ одной записи | Доступно |
+| Экспорт после ручного подтверждения | Доступно |
+| `.cue`-карты для предварительных и подтверждённых точек | Доступно |
+| Оценка качества на репрезентативных живых данных | Не измерена |
+| Калиброванная оценка шума и художественного исполнения | Недоступна |
+| Сравнение с утверждённой эталонной начиткой | Не реализовано |
+| Квалификация длинных файлов и server-ready режим | Не измерены |
+| Очередь, дашборд, Telegram/Drive-интеграции | Вне scope |
+
+## Инструкции для агентов
+
+- [AGENTS.md](AGENTS.md) — общие правила разработки и безопасности для coding-агентов и контрибьюторов.
+- [SKILL.md](SKILL.md) — операционная инструкция для Hermes Agent: подготовка окружения, запуск и границы выводов.
+- [CONTRIBUTING.md](CONTRIBUTING.md) — правила для вкладов в проект.
+
+`AGENTS.md` — широко поддерживаемая, но не универсальная конвенция. Если ваш агент не читает `AGENTS.md` автоматически, явно дайте ему команду начать с этого файла. Не дублируйте правила в случайные agent-specific файлы: источник правды должен оставаться один.
+
+## Документация
+
+- [Установка и bootstrap](INSTALL.md)
+- [Архитектура](docs/ARCHITECTURE.md)
+- [Разработка](docs/DEVELOPMENT.md)
+- [Техническая спецификация pipeline](references/pipeline_spec.md)
+- [Правила безопасности](SECURITY.md)
+- [История изменений](CHANGELOG.md)
+- [Релиз v0.5.0](docs/releases/v0.5.0.md)
+
+## Как внести вклад
+
+Перед pull request:
 
 ```bash
 uv sync --dev
 uv run pytest -q
 ```
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md). Never attach customer materials, proprietary text, real transcripts or credentials to an issue, commit or pull request.
+Не добавляйте в issue, commit или PR клиентские материалы, конфиденциальные тексты, реальные транскрипты, отчёты или учётные данные. Подробности — в [CONTRIBUTING.md](CONTRIBUTING.md) и [AGENTS.md](AGENTS.md).
 
-## License
+## Лицензия
 
-MIT — see [LICENSE](LICENSE).
-
-## Origin
-
-Readback Sentinel began as an internal experiment in local narration QA. The public project exists to make the engineering approach inspectable: conservative evidence, local processing and a human decision gate.
+[MIT](LICENSE).
