@@ -11,6 +11,7 @@ def platform_ffmpeg_step(
     platform: PlatformInfo,
     *,
     package_manager_state: ComponentState | None,
+    package_manager_executable: str | None = None,
     is_root: bool,
 ) -> Step:
     """Return an ffmpeg step from immutable platform discovery state."""
@@ -18,7 +19,7 @@ def platform_ffmpeg_step(
         if package_manager_state is ComponentState.READY:
             return Step(
                 id="install_ffmpeg",
-                argv=("brew", "install", "ffmpeg"),
+                argv=(package_manager_executable or "brew", "install", "ffmpeg"),
                 requires_network=True,
             )
         return _manual_step(
@@ -30,7 +31,7 @@ def platform_ffmpeg_step(
             return Step(
                 id="install_ffmpeg",
                 argv=(
-                    "winget",
+                    package_manager_executable or "winget",
                     "install",
                     "--id",
                     "Gyan.FFmpeg",
@@ -52,7 +53,7 @@ def platform_ffmpeg_step(
         if is_root:
             return Step(
                 id="install_ffmpeg",
-                argv=("apt-get", "install", "-y", "ffmpeg"),
+                argv=(package_manager_executable or "apt-get", "install", "-y", "ffmpeg"),
                 requires_network=True,
             )
         return Step(

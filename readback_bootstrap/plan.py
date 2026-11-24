@@ -27,11 +27,15 @@ def build_install_plan(
             platform_ffmpeg_step(
                 receipt.platform,
                 package_manager_state=_package_manager_state(receipt),
+                package_manager_executable=_component_executable(
+                    receipt, _package_manager_name(receipt)
+                ),
                 is_root=is_root,
             )
         )
 
     uv_available = _component_state(receipt, "uv") is ComponentState.READY
+    uv_executable = _component_executable(receipt, "uv") or "uv"
     if not uv_available:
         if _component_state(receipt, "pip") is ComponentState.READY:
             steps.append(
@@ -58,7 +62,7 @@ def build_install_plan(
         steps.append(
             Step(
                 id="sync_dependencies",
-                argv=("uv", "sync", "--dev", "--locked"),
+                argv=(uv_executable, "sync", "--dev", "--locked"),
                 requires_network=True,
             )
         )
@@ -67,7 +71,7 @@ def build_install_plan(
                 Step(
                     id="prepare_model",
                     argv=(
-                        "uv",
+                        uv_executable,
                         "run",
                         "python",
                         "scripts/prepare_model.py",
@@ -89,11 +93,24 @@ def _component_state(receipt: Receipt, name: str) -> ComponentState | None:
     return None
 
 
+def _component_executable(receipt: Receipt, name: str | None) -> str | None:
+    if name is None:
+        return None
+    for component in receipt.components:
+        if component.name == name and component.status is ComponentState.READY:
+            return component.detail
+    return None
+
+
 def _package_manager_state(receipt: Receipt) -> ComponentState | None:
-    manager = {"Darwin": "brew", "Linux": "apt-get", "Windows": "winget"}.get(
+    manager = _package_manager_name(receipt)
+    return _component_state(receipt, manager) if manager is not None else None
+
+
+def _package_manager_name(receipt: Receipt) -> str | None:
+    return {"Darwin": "brew", "Linux": "apt-get", "Windows": "winget"}.get(
         receipt.platform.system
     )
-    return _component_state(receipt, manager) if manager is not None else None
 
 
 def _validate_model(model: str | None) -> None:

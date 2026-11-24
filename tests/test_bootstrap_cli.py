@@ -10,12 +10,15 @@ from types import ModuleType
 
 import pytest
 
+from readback_bootstrap.apply import apply_plan
 from readback_bootstrap.models import (
     ComponentState,
     ComponentStatus,
     OverallStatus,
     PlatformInfo,
     Receipt,
+    Step,
+    StepStatus,
 )
 
 
@@ -207,6 +210,59 @@ def test_interactive_json_install_keeps_prompts_off_stdout(
     assert "Continue? [y/N]" not in captured.out
     assert "Bootstrap will run:" in captured.err
     assert "Continue? [y/N]" in captured.err
+
+
+def test_smoke_test_uses_executable_from_completed_sync_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Catches smoke checks reverting to a bare uv command outside PATH."""
+    from readback_bootstrap import cli
+
+    calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        cli,
+        "run_command",
+        lambda argv: calls.append(argv) or CompletedProcess(argv, 0),
+    )
+
+    result = cli._smoke_test(
+        (
+            Step(
+                "sync_dependencies",
+                ("/fixed/.local/bin/uv", "sync", "--dev", "--locked"),
+                status=StepStatus.COMPLETED,
+            ),
+        )
+    )
+
+    assert result == {"status": "PASSED"}
+    assert calls == [
+        ("/fixed/.local/bin/uv", "run", "pytest", "-q"),
+        ("/fixed/.local/bin/uv", "run", "python", "scripts/run_qc.py", "--help"),
+    ]
+
+
+def test_missing_executable_becomes_generic_failed_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Catches a missing planned executable escaping as a traceback."""
+    from readback_bootstrap import cli
+
+    def missing(_argv: tuple[str, ...], **_kwargs: object) -> CompletedProcess[str]:
+        raise FileNotFoundError("private executable location")
+
+    monkeypatch.setattr(cli.subprocess, "run", missing)
+
+    result = apply_plan(
+        (Step("sync_dependencies", ("/fixed/.local/bin/uv", "sync")),),
+        assume_yes=True,
+        confirm=lambda _step: True,
+        run=cli.run_command,
+    )
+
+    assert result[0].status is StepStatus.FAILED
+    assert result[0].return_code != 0
+    assert result[0].error == "COMMAND_FAILED"
 
 
 def _load_prepare_model(path: Path) -> ModuleType:

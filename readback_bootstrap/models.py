@@ -29,6 +29,19 @@ class ComponentState(str, Enum):
     UNSUPPORTED = "UNSUPPORTED"
 
 
+_SAFE_MANUAL_ACTIONS = frozenset(
+    {
+        "Install Homebrew from https://brew.sh/ then rerun bootstrap.",
+        "Install or update App Installer to obtain winget, then rerun bootstrap.",
+        "Install apt-get for this Debian/Ubuntu system, then rerun bootstrap.",
+        "sudo apt-get update && sudo apt-get install -y ffmpeg",
+        "ffmpeg installation is unsupported on this platform; install ffmpeg manually.",
+        "Install pip for this Python interpreter, then rerun bootstrap.",
+    }
+)
+_SAFE_ERRORS = frozenset({"COMMAND_FAILED"})
+
+
 @dataclass(frozen=True)
 class PlatformInfo:
     system: str
@@ -83,7 +96,24 @@ def _normalise(value: object) -> Any:
         if not math.isfinite(value):
             raise ValueError("non-finite float is not JSON-safe")
         return value
-    if isinstance(value, (Receipt, PlatformInfo, ComponentStatus, Step)):
+    if isinstance(value, ComponentStatus):
+        return {
+            "name": _normalise(value.name),
+            "status": _normalise(value.status),
+        }
+    if isinstance(value, Step):
+        result = {
+            "id": _normalise(value.id),
+            "requires_network": _normalise(value.requires_network),
+            "requires_elevation": _normalise(value.requires_elevation),
+            "status": _normalise(value.status),
+            "return_code": _normalise(value.return_code),
+            "error": _normalise(value.error if value.error in _SAFE_ERRORS else None),
+        }
+        if value.manual_action in _SAFE_MANUAL_ACTIONS:
+            result["manual_action"] = _normalise(value.manual_action)
+        return result
+    if isinstance(value, (Receipt, PlatformInfo)):
         return {
             declared_field.name: _normalise(getattr(value, declared_field.name))
             for declared_field in fields(value)

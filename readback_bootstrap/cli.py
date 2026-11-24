@@ -144,22 +144,27 @@ def run_command(argv: tuple[str, ...]) -> subprocess.CompletedProcess[str]:
     """Run a planned tuple argv without a shell or receipt-visible command output."""
     if not isinstance(argv, tuple):
         raise TypeError("bootstrap commands must use tuple argv")
-    return subprocess.run(
-        argv,
-        check=False,
-        shell=False,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        return subprocess.run(
+            argv,
+            check=False,
+            shell=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except OSError:
+        return subprocess.CompletedProcess(argv, 1)
 
 
 def _smoke_test(steps: tuple[Step, ...]) -> dict[str, object]:
     sync = next((step for step in steps if step.id == "sync_dependencies"), None)
-    if sync is None or sync.status is not StepStatus.COMPLETED:
+    if sync is None or sync.status is not StepStatus.COMPLETED or sync.argv is None:
         return {"status": StepStatus.SKIPPED}
+    uv_executable = sync.argv[0]
     commands = (
-        ("uv", "run", "pytest", "-q"),
-        ("uv", "run", "python", "scripts/run_qc.py", "--help"),
+        (uv_executable, "run", "pytest", "-q"),
+        (uv_executable, "run", "python", "scripts/run_qc.py", "--help"),
     )
     for command in commands:
         if run_command(command).returncode != 0:

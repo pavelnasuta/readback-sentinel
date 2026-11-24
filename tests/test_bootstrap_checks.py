@@ -9,7 +9,8 @@ import pytest
 
 from readback_bootstrap import checks
 from readback_bootstrap.checks import discover_environment
-from readback_bootstrap.models import OverallStatus, PlatformInfo, Receipt
+from readback_bootstrap.models import ComponentState, OverallStatus, PlatformInfo, Receipt, StepStatus
+from readback_bootstrap.plan import build_install_plan
 
 
 def _project_root(tmp_path: Path) -> Path:
@@ -59,6 +60,38 @@ def test_discovery_reports_action_required_for_old_python_and_missing_tools(tmp_
     assert {
         item.name for item in receipt.components if item.status.value != "READY"
     } >= {"python", "pip", "uv", "ffmpeg", "winget"}
+
+
+def test_linux_debian_marker_selects_debian_manual_apt_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Catches treating a Linux kernel build string as a distro identity."""
+    original_is_file = Path.is_file
+    monkeypatch.setattr(
+        Path,
+        "is_file",
+        lambda path: path == Path("/etc/debian_version") or original_is_file(path),
+    )
+    monkeypatch.setattr(checks.host_platform, "release", lambda: "6.8.0-1018-azure")
+
+    receipt = discover_environment(
+        _project_root(tmp_path),
+        system="Linux",
+        machine="x86_64",
+        python_version=(3, 11),
+        which=lambda name: {
+            "uv": "/usr/bin/uv",
+            "ffmpeg": None,
+            "apt-get": "/usr/bin/apt-get",
+        }.get(name),
+    )
+    step = build_install_plan(receipt, model=None, skip_model=False, is_root=False)[0]
+
+    assert receipt.platform.release == "debian"
+    assert step.status is StepStatus.MANUAL_ACTION_REQUIRED
+    assert step.manual_action == "sudo apt-get update && sudo apt-get install -y ffmpeg"
+    assert step.argv is None
+    assert next(component for component in receipt.components if component.name == "apt-get").status is ComponentState.READY
 
 
 class _EnvironmentPathAccessForbidden:

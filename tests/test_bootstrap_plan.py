@@ -174,6 +174,61 @@ def test_plan_uses_receipt_package_manager_state_without_host_lookup(
     assert missing_step.argv is None
 
 
+@pytest.mark.parametrize(
+    ("platform", "manager", "manager_path", "is_root", "ffmpeg_argv"),
+    [
+        (
+            PlatformInfo("Darwin", "", "arm64"),
+            "brew",
+            "/fixed/homebrew/bin/brew",
+            False,
+            ("/fixed/homebrew/bin/brew", "install", "ffmpeg"),
+        ),
+        (
+            PlatformInfo("Windows", "", "AMD64"),
+            "winget",
+            "C:/fixed/WindowsApps/winget.exe",
+            False,
+            (
+                "C:/fixed/WindowsApps/winget.exe",
+                "install",
+                "--id",
+                "Gyan.FFmpeg",
+                "-e",
+                "--accept-source-agreements",
+                "--accept-package-agreements",
+            ),
+        ),
+        (
+            PlatformInfo("Linux", "debian", "x86_64"),
+            "apt-get",
+            "/fixed/usr/bin/apt-get",
+            True,
+            ("/fixed/usr/bin/apt-get", "install", "-y", "ffmpeg"),
+        ),
+    ],
+)
+def test_plan_executes_discovered_executables_outside_path(
+    platform: PlatformInfo,
+    manager: str,
+    manager_path: str,
+    is_root: bool,
+    ffmpeg_argv: tuple[str, ...],
+) -> None:
+    """Catches discarding fixed-location discovery and falling back to bare commands."""
+    receipt = _receipt(
+        ComponentStatus("ffmpeg", ComponentState.MISSING),
+        ComponentStatus("uv", ComponentState.READY, "/fixed/.local/bin/uv"),
+        ComponentStatus(manager, ComponentState.READY, manager_path),
+        platform=platform,
+    )
+
+    steps = build_install_plan(receipt, model=None, skip_model=False, is_root=is_root)
+
+    assert steps[0].argv == ffmpeg_argv
+    assert steps[1].argv == ("/fixed/.local/bin/uv", "sync", "--dev", "--locked")
+
+
 def test_missing_pip_requires_manual_action_and_does_not_plan_uv_or_sync() -> None:
     """Catches a planner that guesses a pip installer or schedules unavailable uv."""
     receipt = _receipt(

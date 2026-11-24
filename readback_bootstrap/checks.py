@@ -37,7 +37,7 @@ def discover_environment(
     detected_python = python_version or (sys.version_info.major, sys.version_info.minor)
     platform = PlatformInfo(
         system=detected_system,
-        release=host_platform.release(),
+        release=_platform_release(detected_system),
         machine=detected_machine,
     )
 
@@ -62,6 +62,15 @@ def discover_environment(
         components=components,
         next_action=_next_action(status),
     )
+
+
+def _platform_release(system: str) -> str:
+    """Return only a supported Linux distribution family, never a kernel version."""
+    if system != "Linux":
+        return host_platform.release()
+    if Path("/etc/debian_version").is_file():
+        return "debian"
+    return ""
 
 
 def _project_component(name: str, path: Path) -> ComponentStatus:
@@ -123,9 +132,11 @@ def _executable_directories(system: str) -> tuple[Path, ...]:
 def _executable_component(
     name: str, which: Callable[[str], str | None]
 ) -> ComponentStatus:
+    resolved_path = which(name)
     return ComponentStatus(
         name,
-        ComponentState.READY if which(name) is not None else ComponentState.MISSING,
+        ComponentState.READY if resolved_path is not None else ComponentState.MISSING,
+        resolved_path,
     )
 
 

@@ -7,6 +7,8 @@ from subprocess import CompletedProcess
 
 from readback_bootstrap.apply import apply_plan
 from readback_bootstrap.models import (
+    ComponentState,
+    ComponentStatus,
     OverallStatus,
     PlatformInfo,
     Receipt,
@@ -121,3 +123,44 @@ def test_receipt_without_path_writes_no_file(tmp_path: Path) -> None:
 
     assert json.loads(text)["command"] == "install"
     assert list(tmp_path.iterdir()) == []
+
+
+def test_json_receipt_redacts_command_arguments_and_executable_locations() -> None:
+    """Catches serialized receipts leaking an operator cache or resolved executable path."""
+    private_cache = "/Users/alice/Private/model-cache"
+    private_uv = "/Users/alice/.local/bin/uv"
+    receipt = Receipt(
+        command="install",
+        status=OverallStatus.READY,
+        platform=PlatformInfo("Darwin", "test", "arm64"),
+        python={"version": "3.11", "supported": True},
+        components=(ComponentStatus("uv", ComponentState.READY, private_uv),),
+        steps=(
+            Step(
+                "prepare_model",
+                (private_uv, "run", "python", "--model-cache", private_cache),
+                requires_network=True,
+                status=StepStatus.COMPLETED,
+                manual_action="sudo apt-get update && sudo apt-get install -y ffmpeg",
+                return_code=0,
+            ),
+        ),
+    )
+
+    payload = receipt.to_dict()
+    encoded = json.dumps(payload)
+
+    assert json.loads(encoded) == payload
+    assert private_cache not in encoded
+    assert private_uv not in encoded
+    assert payload["steps"] == [
+        {
+            "id": "prepare_model",
+            "requires_network": True,
+            "requires_elevation": False,
+            "status": "COMPLETED",
+            "manual_action": "sudo apt-get update && sudo apt-get install -y ffmpeg",
+            "return_code": 0,
+            "error": None,
+        }
+    ]
